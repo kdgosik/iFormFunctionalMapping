@@ -90,7 +90,7 @@ logistic_legendre_fit <- function(parameters, formula, data, time_col){
   for( i in 1 : p ){
     eval(
       parse(
-        text = paste0("beta", i, "<-parameters[", (i+3), ":", (i+6), "]")
+        text = paste0("beta", i, "<-parameters[", (4*i), ":", (4*i+3), "]")
       )
     )
   }

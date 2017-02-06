@@ -1,10 +1,11 @@
 library(pracma)
 library(MASS)
+library(ggplot2)
 rm(list=ls()); gc(reset = TRUE)
 
-a <- 5
-b <- 0.5
-r <- 0.5
+a <- 180
+b <- 3
+r <- 0.9
 sigma <- 1
 rho <- 0.2
 
@@ -27,22 +28,22 @@ time_df <- do.call(rbind, lapply(1:100, function(id) cbind(id, t)))
 
 df <- merge(snps, time_df, by = "id", all = TRUE)
 
-snp1_effect <- rnorm(4,1,1)
+snp1_effect <- rnorm(4, 0.25, 0.125)
 snp1 <- rep(snp1_effect %*% L, 100)
-snp2_effect <- rnorm(4,1,1)
+snp2_effect <- rnorm(4, 0.25, 0.125)
 snp2 <- rep(snp2_effect %*% L, 100)
-snp3_effect <- rnorm(4,1,1)
+snp3_effect <- rnorm(4, 0.25, 0.125)
 snp3 <- rep(snp3_effect %*% L, 100)
-snp4_effect <- rnorm(4,1,1)
+snp4_effect <- rnorm(4, 0.25, 0.125)
 snp4 <- rep(snp4_effect %*% L, 100)
-snp5_effect <- rnorm(4,1,1)
+snp5_effect <- rnorm(4, 0.25, 0.125)
 snp5 <- rep(snp5_effect %*% L, 100)
-snp6_effect <- rnorm(4,1,1)
+snp6_effect <- rnorm(4, 0.25, 0.125)
 snp6 <- rep(snp6_effect %*% L, 100)
-snp7_effect <- rnorm(4,1,1)
+snp7_effect <- rnorm(4, 0.25, 0.125)
 snp7 <- rep(snp7_effect %*% L, 100)
 
-y <- rep(mu + mvrnorm(n = 1, rep(0, 10), COVAR), 100) + 
+y <- as.vector(t(mvrnorm(n = 100, mu, COVAR))) + 
   snp1 * df[, 1] + 
   snp2 * df[, 3] + 
   snp3 * df[, 5] + 
@@ -50,11 +51,15 @@ y <- rep(mu + mvrnorm(n = 1, rep(0, 10), COVAR), 100) +
   snp5 * df[, 1] * df[, 3] + 
   snp6 * df[, 1] * df[, 5] + 
   snp7 * df[, 3] * df[, 5]
+y <- y + abs(min(y))
 
 df <- data.frame(y, df)
+ggplot(df, aes(t, y)) + geom_path()
+ggplot(df, aes(t, y)) + geom_point() + geom_smooth()
 
+a_hat <- max(y)
 form <- y ~ X1 + X3 + X5
-params <- c(5, 0.5, 0.5, rep(1, 8))
+params <- c(a_hat, 0.5, 0.5, rep(1, 12))
 
 system.time({
   out <- fminsearch(logistic_legendre_fit, params, 
