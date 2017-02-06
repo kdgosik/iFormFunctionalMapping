@@ -1,0 +1,333 @@
+---
+title: "pracma_fminsearch"
+author: "Kirk Gosik"
+date: "December 22, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(pracma)
+library(lme4) # for Orange dataset
+rm(list=ls()); gc(reset = TRUE)
+
+logi_fit <- function(params, data){
+  a <- params[1]
+  b <- params[2]
+  r <- params[3]
+  
+  t <- data$age # time variable
+  y <- data$circumference
+  
+  y_hat <- a/(1+b*exp(-r*t))
+  sum((y - y_hat)^2)
+}
+  
+out <- fminsearch(logi_fit, c(100, 1, 1), data = Orange)
+
+logi_predict <- function(out, data){
+  a <- out$xval[1]
+  b <- out$xval[2]
+  r <- out$xval[3]
+  
+  t <- data$age
+  
+  y_hat <- a/(1+b*exp(-r*t))
+  y_hat
+}
+
+```
+
+Adding a fixed effect for a group variable
+
+```{r}
+Orange_group <- data.frame(Orange, group = c(rep(1, 20), rep(0, 15)))
+
+logi_fit_group <- function(params, data){
+  a <- params[1]
+  b <- params[2]
+  r <- params[3]
+  beta <- params[4]
+  
+  t <- data$age # time variable
+  x <- data$group
+  y <- data$circumference
+  
+  y_hat <- a/(1+b*exp(-r*t)) + beta*x
+  sum((y - y_hat)^2)
+}
+  
+out <- fminsearch(logi_fit_group, c(100, 1, 1, 1), data = Orange_group)
+out
+
+```
+
+# Adding legendre polynomicals without correlated error structure
+
+ with the currenct output by including a group (or SNP) effect will result in the need for a paramter for the order of the legendre polynomials + 1
+
+For finding the order of the legendre polynomial, you can use AIC or BIC in some fashion. 
+
+```{r}
+Orange_group <- data.frame(Orange, group = c(rep(1, 20), rep(0, 15)))
+
+logi_fit_group <- function(params, data){
+  a <- params[1]
+  b <- params[2]
+  r <- params[3]
+  beta <- params[4:7]
+  
+  t <- data$age # time variable
+  x <- data$group
+  y <- data$circumference
+  
+  t_sd <- (t - min(t))/(max(t) - min(t))
+  L <- legendre(3, t_sd)
+  
+  y_hat <- a/(1+b*exp(-r*t)) + beta %*% (L*x)
+  sum((y - y_hat)^2)
+}
+  
+out <- fminsearch(logi_fit_group, c(100, 1, 1, 1, 1, 1, 1), data = Orange_group)
+out
+```
+
+Correlating the error structure
+
+```{r}
+Orange_group <- data.frame(Orange, group = c(rep(1, 20), rep(0, 15)))
+
+logi_fit_cor <- function(params, data){
+
+  a <- params[1]
+  b <- params[2]
+  r <- params[3]
+  sigma <- params[4] # for use in ar1 model
+  rho <- params[5] # for use in ar1 model
+  
+  id <- data$Tree
+  j <- length(unique(id))
+  t <- data$age # time variable
+  m <- length(unique(t))
+  #x <- data$group
+  y <- data$circumference
+ 
+  COVAR <- rho^(outer(seq(0, (m-1)), seq(0, (m-1)), function(a,b) abs(a-b)))
+  diag(COVAR) <- sigma
+  COVAR <- kronecker(diag(j), COVAR)
+  
+  y_hat <- a/(1 + b * exp(-r * t))
+  
+  #sum((y - y_hat)^2)
+  t(y - y_hat) %*% COVAR %*% (y - y_hat)
+}
+  
+out <- fminsearch(logi_fit_cor, c(150, 700, 350, 0.1, 0.1), data = Orange, dfree = FALSE)
+
+# might need constraints to properly optimze
+## look into optimx package/function
+
+```
+
+
+
+## PRACMA
+
+```{r}
+library(pracma)
+library(MASS)
+library(magrittr)
+
+# Sigma <- matrix(c(1, 0.2, 0.04, 
+#                   0.2, 1, 0.2,
+#                   0.04, 0.2, 1), 3, 3)
+# mvrnorm(10, mu = c(1, 1, 1), Sigma = Sigma)
+
+rand_logi_func <- function( a = 1, 
+                            b = 1, 
+                            r = 1, 
+                            t, 
+                            sigma = 0.5, 
+                            rho = 0.2, 
+                            type = "ar1" ){
+  
+  mu_vec <- a /( 1 + b * exp(-r * t) )
+
+  SIGMA = matrix(0, nrow = length(mu_vec), ncol = length(mu_vec))
+  diag(SIGMA) <- sigma^2
+  
+  rho <- switch(type,
+                `cs` = rep(rho, (length(mu_vec) - 1)),
+                `ar1` = sapply(1 : length(mu_vec), function(i) rho^(i-1))
+  )
+  
+  for( i in 1 : nrow(SIGMA) ){
+    for( j in 1 : ncol(SIGMA) ){
+     if( i != j ) SIGMA[i, j] <- rho[i] 
+    }
+  }
+  
+  mvrnorm(1, mu = mu_vec, Sigma = SIGMA)
+ 
+}
+
+rand_logi_func(a = 115,
+               b = 2.5,
+               r = .5,
+               t = 1:15,
+               sigma = 1,
+               rho = 0.2,
+               type = "ar1") %>%
+  plot
+
+```
+
+# Legendre
+
+```{r}
+# from Wolfram Mathworld
+
+P0 <- function(x){ 1 }
+P1 <- function(x){ x }
+P2 <- function(x){ 0.5 * (3*x^2 - 1) }
+P3 <- function(x){ 0.5 * (5*x^3) - 3*x }
+P4 <- function(x){ 0.125 * (35*x^4 - 30 * x^2 + 3) }
+P5 <- function(x){ 0.125 * (63*x^5 - 70 * x^3 + 15 * x) }
+P6 <- function(x){ 0.0625 * (231*x^6 - 315 * x^4 + 105 * x^2 - 5) }
+
+#print(legendre)
+
+t <- seq(0, 15, len = 10)
+t_s <- t/15
+
+(L <- legendre(3, t_s))
+(y_t <- as.matrix(rand_logi_func(a = 115,
+               b = 2.5,
+               r = .5,
+               t = t,
+               sigma = 1,
+               rho = 0.2,
+               type = "ar1")))
+plot(y_t)
+
+L %*% y_t
+
+```
+```{r}
+
+t <- Orange_df$age
+t_s <- (t - min(t))/(max(t)- min(t)) # min-max standardization
+y_t <- Orange_df$circumference
+L <- legendre(3, t_s)
+L %*% y_t # might not need to do this part, that is what we are fitting
+
+
+library(tidyr)
+Orange_df <- data.frame(Orange)
+t <- unique(Orange_df$age)
+t_s <- (t - min(t))/(max(t)- min(t))# min-max standardization
+y_t <- as.matrix(spread(Orange_df, Tree, circumference)[,-1])
+L <- legendre(3, t_s)
+out <- L %*% y_t   # might not need to do this part, that is what we are fitting
+out
+rowSums(out) # same as above
+rowMeans(out) # average across subjects
+gather(as.data.frame(out)) # subject specific
+
+```
+
+## fminsearch Linear Regression
+
+```{r fminsearch, echo=FALSE}
+# Rosenbrock function
+rosena <- function(x, a) 100*(x[2]-x[1]^2)^2 + (a-x[1])^2 # min: (a, a^2)
+fminsearch(rosena, c(-1.2, 1), a = sqrt(2))
+
+# Sample data
+n <- 100
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+y <- 1 + x1 + x2 + rnorm(n)
+X <- cbind( rep(1,n), x1, x2 )
+dat <- data.frame(x1,x2,y)
+summary(fit_lm <- lm(y ~ ., data = dat))
+
+
+leastsquares <- function(data, beta ){
+  x <- as.matrix(cbind(1, data[,-3]))
+  y <- data[,3]
+  
+  y_pred <- x %*% beta
+  sum((y - y_pred)^2)
+  
+}
+
+
+min.RSS <- function(data, par) {
+              with(data, sum((par[1] + par[2] * x1 + par[3] * x2 - y)^2))
+}
+
+fit_lm
+fminsearch(leastsquares, c(0,1,1), data = dat)
+fminsearch(min.RSS, c(0,1,1), data = dat)
+
+
+```
+
+## fminsearch Non-Linear Regression
+
+```{r}
+
+n <- 100
+x <- rnorm(n)
+y <- 1 * (1 - exp(-0.5 * x)) + rnorm(n)
+dat <- data.frame(x,y)
+
+# y = a0(1-exp(-a1x))
+
+non_lin <- function(beta, data){
+  x <- data$x
+  y <- data$y
+  
+  y_pred <- beta[1] * (1 - exp(-beta[2] * x))
+  sum((y - y_pred)^2)
+}
+
+fminsearch(non_lin, c(1,1), data = dat)
+
+
+
+```
+
+
+
+```{r}
+y_test <- rand_logi_func(a = 115,
+               b = 2.5,
+               r = .5,
+               t = 1:15,
+               sigma = 1,
+               rho = 0.2,
+               type = "ar1")
+
+dat <- data.frame(y = y_test,
+                  t = 1:15)
+
+ar1_nonlin <- function(params, data){
+  y <- data$y
+  t <- data$t
+  
+  a <- params[1]; b <- params[2]; r <- params[3]
+  sigma <- params[4]; rho <- params[5]
+  
+  y_hat <- 
+  
+  
+}
+
+```
+

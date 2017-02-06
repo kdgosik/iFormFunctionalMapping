@@ -1,0 +1,88 @@
+library(pracma)
+library(MASS)
+rm(list=ls()); gc(reset = TRUE)
+
+a <- 5
+b <- 0.5
+r <- 0.5
+sigma <- 1
+rho <- 0.2
+
+m <- 10
+t <- 0:9
+t_s <- (t - min(t))/(max(t) - min(t))
+mu <- a / (1 + b * exp(-r*t))
+L <- legendre(3, t_s)
+
+
+COVAR <- rho^(outer(seq(0, (m-1)), seq(0, (m-1)), function(a,b) abs(a-b)))
+diag(COVAR) <- sigma^2
+#COVAR <- kronecker(diag(j), COVAR)
+mvrnorm(n = 1, rep(0, 10), COVAR)
+
+snps <- matrix(rbinom(5000, 1, 0.5), nrow = 100)
+snps <- data.frame(id = 1:100, snps)
+
+time_df <- do.call(rbind, lapply(1:100, function(id) cbind(id, t)))
+
+df <- merge(snps, time_df, by = "id", all = TRUE)
+
+snp1_effect <- rnorm(4,1,1)
+snp1 <- rep(snp1_effect %*% L, 100)
+snp2_effect <- rnorm(4,1,1)
+snp2 <- rep(snp2_effect %*% L, 100)
+snp3_effect <- rnorm(4,1,1)
+snp3 <- rep(snp3_effect %*% L, 100)
+snp4_effect <- rnorm(4,1,1)
+snp4 <- rep(snp4_effect %*% L, 100)
+snp5_effect <- rnorm(4,1,1)
+snp5 <- rep(snp5_effect %*% L, 100)
+snp6_effect <- rnorm(4,1,1)
+snp6 <- rep(snp6_effect %*% L, 100)
+snp7_effect <- rnorm(4,1,1)
+snp7 <- rep(snp7_effect %*% L, 100)
+
+y <- rep(mu + mvrnorm(n = 1, rep(0, 10), COVAR), 100) + 
+  snp1 * df[, 1] + 
+  snp2 * df[, 3] + 
+  snp3 * df[, 5] + 
+  snp4 * df[, 8] + 
+  snp5 * df[, 1] * df[, 3] + 
+  snp6 * df[, 1] * df[, 5] + 
+  snp7 * df[, 3] * df[, 5]
+
+df <- data.frame(y, df)
+
+form <- y ~ X1 + X3 + X5
+params <- c(5, 0.5, 0.5, rep(1, 8))
+
+system.time({
+  out <- fminsearch(logistic_legendre_fit, params, 
+                    formula = form,
+                    data = df,
+                    time_col = "t")
+})
+
+out
+
+sol <- c("X1", "X3")
+cand <- c("X5", "X8")
+
+  params <- rep(1, 3 + 4 * (length(sol) + 1))
+  
+  lapply(cand, function(candidates){
+    var_names <- c(sol, candidates)
+    
+    form <- as.formula(paste(y, "~", paste(var_names, collapse = "+")))
+    
+    out <- fminsearch(logistic_legendre_fit, params, 
+                      formula = form,
+                      data = data,
+                      time_col = time_col)
+    out
+    
+  })
+
+
+
+minfval_map_func(C = cand, S = sol, y = "y", data = df, time_col = "t")
