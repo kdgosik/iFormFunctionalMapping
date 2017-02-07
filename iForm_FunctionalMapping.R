@@ -3,71 +3,111 @@ library(doParallel)
 library(iterators)
 library(Rcpp)
 
-iForm_FunctionalMap <- function(formula, data, heredity = "strong", higher_order = FALSE) {
 
-  dat <- model.frame(formula, data)
-  y <- dat[ , 1]
-  x <- dat[ , -1]
-  p <- ncol(x)
-  n <- nrow(x)
-  C <- names(x)
+# formula <- y ~ .
+# data = df[c(1:8,53)]
+# id <- "id"
+# time_col <- "t"
+# heredity = "strong"
+# higher_order = FALSE
+
+iForm_FunctionalMap <- function(formula, data, id, time_col, heredity = "strong", higher_order = FALSE) {
+
+  formula_vars <- all.vars(formula)
+  response <- formula_vars[1]
+  p <- ncol(data) - 3
+  n <- nrow(data)
+  C <- names(data)[!{names(data) %in% c(id, time_col, formula_vars)}]
   S <- NULL
   M <- NULL
   bic <- NULL
+  output_list <- NULL
+  step <- 1
 
-  fit <- iformselect_FunctionalMap(x, y, p, n, C, S, bic, heredity, higher_order)
-
-  y <- fit$y
-  S <- fit$S
-  bic <- fit$bic
-
-  model_formula <- as.formula(paste("y ~0+", paste(S[1:which.min(bic)], collapse = "+")))
-  lm(model_formula, data = x)
-
-}
-
-
-
-
-
-
-iformselect_FunctionalMap <- function( x, y, p, n, C, S, bic, heredity, higher_order ) {
-
+  
   repeat{
-
-    RSS <- rss_map_func(C = C, S = S, y = y, data = x)
-
+    
+    min_out <- minfval_map_func(C = C, S = S, response = response, data = data, time_col = time_col)
+    output_list[[step]] <- min_out
+    
+    RSS <-sapply(seq_along(min_out), function(i) min_out[[i]]$fval)
+    
     S <- c(S, C[which.min(unlist(RSS))])
     C <- C[-which.min(unlist(RSS))]
-
-      order2 <- switch( heredity,
-              `none` = NULL,
-              `strong` = strong_order2(S = S, data = x),
-              `weak` = weak_order2(S = S, C = C, data = x)
-              )
-
-      C <- union(C, order2)
-
-      if( higher_order ) {
-
-        order3 <- switch( heredity,
-                `strong` = strong_order3( S = S, data = x ),
-                `weak` = weak_order3(S = S, C = C, data = x)
-                )
-
-        C <- union(C, order3)
-
-      }
-
+    
+    order2 <- switch( heredity,
+                      `none` = NULL,
+                      `strong` = strong_order2(S = S, data = data),
+                      `weak` = weak_order2(S = S, C = C, data = data)
+    )
+    
+    C <- union(C, order2)
+    
+    if( higher_order ) {
+      
+      order3 <- switch( heredity,
+                        `strong` = strong_order3( S = S, data = data),
+                        `weak` = weak_order3(S = S, C = C, data = data)
+      )
+      
+      C <- union(C, order3)
+      
+    }
+    
     bic_val <- log(min(unlist(RSS))/n) + length(S) * (log(n) + 2 * log(p))/n
     bic <- append(bic, bic_val)
-    if(length(bic) > 20) break
-
+    if(length(bic) > 5) break
+    step <- step + 1
   }
+  
+  out <- output_list[[which.min(bic)]]
+  rss_out <- sapply(seq_along(out), function(i) out[[i]]$fval)
+  out[[which.min(rss_out)]]
 
-  list(y = y, S = S, bic = bic)
-  stopCluster(cl); gc(reset = TRUE)
 }
+
+
+
+
+
+# probably delete
+
+# iformselect_FunctionalMap <- function( x, y, p, n, C, S, bic, heredity, higher_order ) {
+# 
+#   repeat{
+# 
+#     RSS <- rss_map_func(C = C, S = S, y = y, data = x)
+# 
+#     S <- c(S, C[which.min(unlist(RSS))])
+#     C <- C[-which.min(unlist(RSS))]
+# 
+#       order2 <- switch( heredity,
+#               `none` = NULL,
+#               `strong` = strong_order2(S = S, data = x),
+#               `weak` = weak_order2(S = S, C = C, data = x)
+#               )
+# 
+#       C <- union(C, order2)
+# 
+#       if( higher_order ) {
+# 
+#         order3 <- switch( heredity,
+#                 `strong` = strong_order3( S = S, data = x ),
+#                 `weak` = weak_order3(S = S, C = C, data = x)
+#                 )
+# 
+#         C <- union(C, order3)
+# 
+#       }
+# 
+#     bic_val <- log(min(unlist(RSS))/n) + length(S) * (log(n) + 2 * log(p))/n
+#     bic <- append(bic, bic_val)
+#     if(length(bic) > 20) break
+# 
+#   }
+# 
+#   list(y = y, S = S, bic = bic)
+# }
 
 
 
@@ -111,89 +151,53 @@ logistic_legendre_fit <- function(parameters, formula, data, time_col){
 }
 
 
-minfval_map_func <- function(C, S, y, data, time_col){
-  params <- rep(1, 3 + 4 * (length(S) + 1))
+minfval_map_func <- function(C, S, response, data, time_col){
+  
+  a_hat <- max(data[,response])
+  params <- c(a_hat, rep(1, 2 + 4 * (length(S) + 1)))
   lapply(C, function(candidates){
     var_names <- c(S, candidates)
     
-    form <- as.formula(paste(y, "~0+", paste(var_names, collapse = "+")))
+    form <- as.formula(paste(response, "~0+", paste(var_names, collapse = "+")))
     
     out <- fminsearch(logistic_legendre_fit, params, 
                       formula = form,
                       data = data,
                       time_col = time_col)
+    names(out$xval)<- c("a", "b", "r", as.vector(t(outer(var_names, paste0("_P", 0:3), paste0))))
     out
     
   })
+  
 }
 
 
-rss_map_func <- function( C, S, y, data ) {
 
-  sapply(C, function(candidates) {
-    var_names <- c(S, candidates)
-
-    X <- model.matrix(as.formula(paste("~0+", paste(var_names, collapse = "+"))), data = data)
-
-    tryCatch({
-      sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2)
-    }, error = function(e) Inf)
-
-
-  })
-
-}
-
-## fastRSS in Rcpp
-
-# adapted for just RSS calculation
-cppFunction(depends = 'RcppArmadillo',
-            'List fastRSS(NumericVector yr, NumericMatrix Xr) {
-            int n = Xr.nrow(), k = Xr.ncol();
-            arma::mat X(Xr.begin(), n, k, false);
-            arma::colvec y(yr.begin(), yr.size(), false);
-            arma::colvec coef = arma::solve(X, y);
-            arma::colvec resid = y - X*coef;
-            double rss = pow(arma::norm(resid), 2);
-
-            return List::create(Named("RSS") = rss);
-            }')
-
-rss_map_func_cpp <- function( C, S, y, data ) {
-
-  sapply(C, function(candidates) {
-    var_names <- c(S, candidates)
-
-    X <- model.matrix(as.formula(paste("~0+", paste(var_names, collapse = "+"))), data = data)
-
-    tryCatch({
-      fastRSS(y, X)
-    }, error = function(e) Inf)
-
-
-  })
-
-}
-
-
-rss_map_func_parallel <- function( C, S, y, data, no_cores = 2 ) {
-
+minfval_map_parallel_func <- function(C, S, response, data, time_col, no_cores = 2){
+  
+  a_hat <- max(data[,response])
+  params <- c(a_hat, rep(1, 2 + 4 * (length(S) + 1)))
+  
   cl <- makeCluster(no_cores)
   registerDoParallel(cl)
-
-  foreach(candidate = C, .combine = "c") %dopar%{
-    var_names <- c(S, candidate)
-
-    X <- model.matrix(as.formula(paste("~0+", paste(var_names, collapse = "+"))), data = data)
-
-    tryCatch({
-      sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2)
-    }, error = function(e) Inf)
-
-
+  
+  foreach(candidates = C, .packages = "pracma", .export = c("a_hat", "params")) %dopar% {
+    var_names <- c(S, candidates)
+    
+    form <- as.formula(paste(response, "~0+", paste(var_names, collapse = "+")))
+    
+    out <- fminsearch(logistic_legendre_fit, params, 
+                      formula = form,
+                      data = data,
+                      time_col = time_col)
+    names(out$xval)<- c("a", "b", "r", as.vector(t(outer(var_names, paste0("_P", 0:3), paste0))))
+    out
+    
   }
-
+  
 }
+
+
 
 
 ## Heredity Selection
