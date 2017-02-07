@@ -122,7 +122,7 @@ FuncMap_fit <- iForm_FunctionalMap(formula = y ~ .,
 })
 
 
-sim_list[[i]] <- list(fit = FunMap_fit,
+sim_list[[i]] <- list(fit = FuncMap_fit,
                  data = df)
 
 }
