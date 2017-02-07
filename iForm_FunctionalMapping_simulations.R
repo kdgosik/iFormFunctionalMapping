@@ -13,16 +13,18 @@ rho <- 0.2
 
 m <- 10
 t <- 0:9
-t_s <- (t - min(t))/(max(t) - min(t))
 mu <- a / (1 + b * exp(-r*t))
-L <- legendre(3, t_s)
+L <- t(Legendre(t, 4))
 
-
+  
 COVAR <- rho^(outer(seq(0, (m-1)), seq(0, (m-1)), function(a,b) abs(a-b)))
 diag(COVAR) <- sigma^2
 #COVAR <- kronecker(diag(j), COVAR)
-mvrnorm(n = 1, rep(0, 10), COVAR)
+#mvrnorm(n = 1, rep(0, 10), COVAR)
 
+sim_list <- list()
+for(i in 1:10){
+  
 snps <- matrix(rbinom(5000, 1, 0.5), nrow = 100)
 snps <- data.frame(id = 1:100, snps)
 
@@ -53,11 +55,10 @@ y <- as.vector(t(mvrnorm(n = 100, mu, COVAR))) +
   snp5 * df[, "X1"] * df[, "X3"] + 
   snp6 * df[, "X1"] * df[, "X5"] + 
   snp7 * df[, "X3"] * df[, "X5"]
-y <- y + abs(min(y))
 
 df <- data.frame(y, df)
-ggplot(df, aes(t, y)) + geom_path()
-ggplot(df, aes(t, y)) + geom_point() + geom_smooth()
+# ggplot(df, aes(t, y)) + geom_path()
+# ggplot(df, aes(t, y)) + geom_point() + geom_smooth()
 
 
 # practice
@@ -81,25 +82,31 @@ ggplot(df, aes(t, y)) + geom_point() + geom_smooth()
 # params <- c(a_hat, rep(1, 2 + 4 * (length(sol) + 1)))
 # time_col <- "t"
 # response <- "y"
-#   
+# 
 # ex_out <-  lapply(cand, function(candidates){
-#   
+# 
 #     var_names <- c(sol, candidates)
-#     
+# 
 #     form <- as.formula(paste(response, "~", paste(var_names, collapse = "+")))
-#     
-#     out <- fminsearch(logistic_legendre_fit, params, 
+# 
+#     out <- fminsearch(logistic_legendre_fit, params,
 #                       formula = form,
 #                       data = df,
 #                       time_col = time_col)
 #     names(out$xval)<- c("a", "b", "r", as.vector(t(outer(var_names[1:3], paste0("_P", 0:3), paste0))))
 #     out
-#     
+# 
 #   })
 # 
 # 
-# 
-# minfval_map_func(C = cand, S = sol, response = "y", data = df, time_col = "t")
+# system.time({
+#  non_par <- minfval_map_func(C = cand, S = sol, response = "y", data = df, time_col = "t")
+# })
+#   
+# system.time({
+#   par_fit <- minfval_map_parallel_func(C = cand, S = sol, response = "y", data = df, time_col = "t", no_cores = 2)
+# })
+
 }
 
 system.time({
@@ -109,6 +116,13 @@ FuncMap_fit <- iForm_FunctionalMap(formula = y ~ .,
                     id = "id",
                     time_col = "t",
                     heredity = "strong",
-                    higher_order = FALSE)
+                    higher_order = FALSE,
+                    no_cores = 6)
 
 })
+
+
+sim_list[[i]] <- list(fit = FunMap_fit,
+                 data = df)
+
+}

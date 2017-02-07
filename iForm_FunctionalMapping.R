@@ -11,7 +11,13 @@ library(Rcpp)
 # heredity = "strong"
 # higher_order = FALSE
 
-iForm_FunctionalMap <- function(formula, data, id, time_col, heredity = "strong", higher_order = FALSE) {
+iForm_FunctionalMap <- function(formula, 
+                                data, 
+                                id, 
+                                time_col, 
+                                heredity = "strong", 
+                                higher_order = FALSE,
+                                no_cores = 4) {
 
   formula_vars <- all.vars(formula)
   response <- formula_vars[1]
@@ -27,7 +33,12 @@ iForm_FunctionalMap <- function(formula, data, id, time_col, heredity = "strong"
   
   repeat{
     
-    min_out <- minfval_map_func(C = C, S = S, response = response, data = data, time_col = time_col)
+    min_out <- minfval_map_parallel_func(C = C, 
+                                S = S, 
+                                response = response, 
+                                data = data, 
+                                time_col = time_col,
+                                no_cores = no_cores)
     output_list[[step]] <- min_out
     
     RSS <-sapply(seq_along(min_out), function(i) min_out[[i]]$fval)
@@ -56,7 +67,7 @@ iForm_FunctionalMap <- function(formula, data, id, time_col, heredity = "strong"
     
     bic_val <- log(min(unlist(RSS))/n) + length(S) * (log(n) + 2 * log(p))/n
     bic <- append(bic, bic_val)
-    if(length(bic) > 5) break
+    if(length(bic) > 10) break
     step <- step + 1
   }
   
@@ -70,50 +81,42 @@ iForm_FunctionalMap <- function(formula, data, id, time_col, heredity = "strong"
 
 
 
-# probably delete
-
-# iformselect_FunctionalMap <- function( x, y, p, n, C, S, bic, heredity, higher_order ) {
-# 
-#   repeat{
-# 
-#     RSS <- rss_map_func(C = C, S = S, y = y, data = x)
-# 
-#     S <- c(S, C[which.min(unlist(RSS))])
-#     C <- C[-which.min(unlist(RSS))]
-# 
-#       order2 <- switch( heredity,
-#               `none` = NULL,
-#               `strong` = strong_order2(S = S, data = x),
-#               `weak` = weak_order2(S = S, C = C, data = x)
-#               )
-# 
-#       C <- union(C, order2)
-# 
-#       if( higher_order ) {
-# 
-#         order3 <- switch( heredity,
-#                 `strong` = strong_order3( S = S, data = x ),
-#                 `weak` = weak_order3(S = S, C = C, data = x)
-#                 )
-# 
-#         C <- union(C, order3)
-# 
-#       }
-# 
-#     bic_val <- log(min(unlist(RSS))/n) + length(S) * (log(n) + 2 * log(p))/n
-#     bic <- append(bic, bic_val)
-#     if(length(bic) > 20) break
-# 
-#   }
-# 
-#   list(y = y, S = S, bic = bic)
-# }
-
-
-
-
-
 ## Help Functions ############################
+
+Legendre<-function( t, np.order=1,tmin=NULL, tmax=NULL )
+{
+  u <- -1
+  v <- 1
+  if (is.null(tmin)) tmin<-min(t)
+  if (is.null(tmax)) tmax<-max(t)
+  nt <- length(t)
+  ti    <- u + ((v-u)*(t-tmin))/(tmax - tmin)
+  np.order.mat <- matrix(rep(0,nt*np.order),nrow=nt)
+  if(np.order >=1)
+    np.order.mat[,1] <- rep(1,nt)
+  if (np.order>=2)
+    np.order.mat[,2] <- ti
+  if (np.order>=3)
+    np.order.mat[,3] <- 0.5*(3*ti*ti-1)
+  if (np.order>=4)
+    np.order.mat[,4] <- 0.5*(5*ti^3-3*ti)
+  if (np.order>=5)
+    np.order.mat[,5] <- 0.125*(35*ti^4-30*ti^2+3)
+  if (np.order>=6)
+    np.order.mat[,6] <- 0.125*(63*ti^5-70*ti^3+15*ti)
+  if (np.order>=7)
+    np.order.mat[,7] <- (1/16)*(231*ti^6-315*ti^4+105*ti^2-5)
+  if (np.order>=8)
+    np.order.mat[,8] <- (1/16)*(429*ti^7-693*ti^5+315*ti^3-35*ti)
+  if (np.order>=9)
+    np.order.mat[,9] <- (1/128)*(6435*ti^8-12012*ti^6+6930*ti^4-1260*ti^2+35)
+  if (np.order>=10)
+    np.order.mat[,10] <- (1/128)*(12155*ti^9-25740*ti^7+18018*ti^5-4620*ti^3+315*ti)
+  if (np.order>=11)
+    np.order.mat[,11] <- (1/256)*(46189*ti^10-109395*ti^8+90090*ti^6-30030*ti^4+3465*ti^2-63)
+  return(np.order.mat)
+}
+
 
 logistic_legendre_fit <- function(parameters, formula, data, time_col){
   
@@ -136,8 +139,7 @@ logistic_legendre_fit <- function(parameters, formula, data, time_col){
   }
   
   t <- data[, time_col] # time variable
-  t_s <- (t - min(t))/(max(t) - min(t))
-  L <- legendre(3, t_s)
+  L <- t(Legendre(t, 4))
   
   eval(
     parse(
@@ -181,7 +183,9 @@ minfval_map_parallel_func <- function(C, S, response, data, time_col, no_cores =
   cl <- makeCluster(no_cores)
   registerDoParallel(cl)
   
-  foreach(candidates = C, .packages = "pracma", .export = c("a_hat", "params")) %dopar% {
+  out_list <-foreach(candidates = C, 
+                     .packages = "pracma", 
+                     .export = c("a_hat", "params", "logistic_legendre_fit", "Legendre")) %dopar% {
     var_names <- c(S, candidates)
     
     form <- as.formula(paste(response, "~0+", paste(var_names, collapse = "+")))
@@ -194,6 +198,8 @@ minfval_map_parallel_func <- function(C, S, response, data, time_col, no_cores =
     out
     
   }
+  stopCluster(cl)
+  out_list
   
 }
 
