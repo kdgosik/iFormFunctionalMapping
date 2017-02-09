@@ -2,15 +2,14 @@ library(foreach)
 library(doParallel)
 library(iterators)
 library(Rcpp)
-library(pracma)
 
 
-# formula <- y ~ .
-# data = df[c(1:8,53)]
-# id <- "id"
-# time_col <- "t"
-# heredity = "strong"
-# higher_order = FALSE
+formula <- y ~ .
+data = df[c(1:15,53)]
+id <- "id"
+time_col <- "t"
+heredity = "strong"
+higher_order = FALSE
 
 iForm_FunctionalMap <- function(formula, 
                                 data, 
@@ -21,7 +20,7 @@ iForm_FunctionalMap <- function(formula,
   
   formula_vars <- all.vars(formula)
   response <- formula_vars[1]
-  t <- data[, time_col, drop = FALSE]
+  t <- data[, time_col]
   p <- ncol(data) - 3
   n <- nrow(data)
   C <- names(data)[!{names(data) %in% c(id, time_col, formula_vars)}]
@@ -31,15 +30,19 @@ iForm_FunctionalMap <- function(formula,
   output_list <- NULL
   step <- 1
   
-  a_hat <- max(data[, reponse])
-  g_out <- fminsearch(g1, c(a_hat, 1, 1),
-                      data = data,
-                      response = response,
-                      time_col = time_col)
+  a_hat <- max(data[, response])
+  g_out <- optim(c(a_hat, 1, 1), 
+                 g1, 
+                 data = data, 
+                 response = response, 
+                 time_col = time_col,
+                 method = "L-BFGS-B",
+                 lower = rep(0, 3))
   
-  mu_t <- g_out$xval[1]/(1 + (g_out$xval[2]) * exp(-(g_out$xval[3]) * t))
+  mu_t <- g_out$par[1]/(1 + (g_out$par[2]) * exp((-g_out$par[3]) * t))
   
-  X <- matrix(mu_t, ncol = 1)
+  X <- as.matrix(mu_t)
+  colnames(X) <- "mu_t"
   
   
   repeat{
@@ -52,22 +55,36 @@ iForm_FunctionalMap <- function(formula,
     #                                      no_cores = no_cores)
     # output_list[[step]] <- min_out
     
-    RSS <-    rss_map_func(C = C,
-                           S = S,
-                           response = response,
-                           data = data,
-                           time_col = time_col,
-                           design_mat = X)
+    # RSS <- rss_map_func(C = C,
+    #                     S = S,
+    #                     response = response,
+    #                     data = data,
+    #                     time_col = time_col,
+    #                     design_mat = X)
     
-    # sapply(seq_along(min_out), function(i) min_out[[i]]$fval)
+    rss_mat <- mapply(function(k) {
+      rss_map_func(C = C,
+                   S = S,
+                   response = response,
+                   data = data,
+                   time_col = time_col,
+                   design_mat = X,
+                   poly_num = k)
+      }, 1:5)
     
-    ## update names of design matrix?
-    form <- as.formula(paste(response, "~0+", C[which.min(unlist(RSS))]))
+    r_idx <- which.min(rss_mat) %% length(C)
+    c_idx <- which.min(rss_mat) %/% length(C) + 1
+    RSS <- rss_mat[r_idx, c_idx]
+
+    ## update design matrix with names
+    form <- as.formula(paste(response, "~0+", C[r_idx]))
     d <- drop(model.matrix(form, data))
-    X <- cbind(X, Legendre(t, 3) * d)
+    Leg_design <- Legendre(t, c_idx) * d
+    colnames(Leg_design) <- paste0(C[r_idx], "_P", 0:(c_idx - 1))
+    X <- cbind(X, Leg_design)
     
-    S <- c(S, C[which.min(unlist(RSS))])
-    C <- C[-which.min(unlist(RSS))]
+    S <- c(S, C[r_idx])
+    C <- C[-r_idx]
     
     order2 <- switch( heredity,
                       `none` = NULL,
@@ -94,12 +111,20 @@ iForm_FunctionalMap <- function(formula,
     step <- step + 1
   }
   
-  out <- output_list[[which.min(bic)]]
-  rss_out <- sapply(seq_along(out), function(i) out[[i]]$fval)
-  out[[which.min(rss_out)]]
+  end_idx <- max(grep(S[which.min(bic)], colnames(X)))
+  
+  M <- data.frame(y = y, X[,1:end_idx])
+  lm(y ~ 0 + ., data = M)
+  
+  # out <- output_list[[which.min(bic)]]
+  # rss_out <- sapply(seq_along(out), function(i) out[[i]]$fval)
+  # out[[which.min(rss_out)]]
   
 }
 
+
+
+## Help Functions ############################
 
 ## Asymptotic Growth Equation
 g1 <- function(parameters, data, response, time_col){
@@ -127,27 +152,45 @@ g_out <- fminsearch(g1, c(150, 1, 1),
 
 
 ## rss mapping function
-rss_map_func <- function(C, S, response, data, time_col, design_mat){
+# rss_map_func <- function(C, S, response, data, time_col, design_mat){
+#   
+#   ti <- data[, time_col]
+#   
+# 
+#   sapply(C, function(candidates){
+# 
+#     form <- as.formula(paste(response, "~0+", candidates))
+#     d <- drop(model.matrix(form, data))
+#     X <- cbind(design_mat, Legendre(ti, 3) * d)
+#     
+#     sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2) 
+#     
+#   })
+#   
+# }
+
+
+## rss mapping function
+rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num = 1){
   
   ti <- data[, time_col]
   
-
+  
   sapply(C, function(candidates){
-
+    
     form <- as.formula(paste(response, "~0+", candidates))
     d <- drop(model.matrix(form, data))
-    X <- cbind(design_mat, Legendre(ti, 3) * d)
+    X <- cbind(design_mat, Legendre(ti, poly_num) * d)
     
+    tryCatch({
     sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2) 
-    
+    }, error = function(e) Inf)
   })
   
 }
 
 
-
-## Help Functions ############################
-
+  # Legendre polynomial fit
 Legendre<-function( t, np.order=1,tmin=NULL, tmax=NULL )
 {
   u <- -1

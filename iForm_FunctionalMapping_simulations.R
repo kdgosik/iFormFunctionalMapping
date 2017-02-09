@@ -22,8 +22,8 @@ diag(COVAR) <- sigma^2
 #COVAR <- kronecker(diag(j), COVAR)
 #mvrnorm(n = 1, rep(0, 10), COVAR)
 
-sim_list <- list()
-for(i in 1:20){
+# sim_list <- list()
+# for(i in 1:20){
   
 snps <- matrix(rbinom(5000, 1, 0.5), nrow = 100)
 snps <- data.frame(id = 1:100, snps)
