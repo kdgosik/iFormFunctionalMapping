@@ -32,7 +32,7 @@ Vsugpr <- function(lambda,x,y,method,ti){
   beta.gcv <- beta[,,l.gcv]
   
   return(list(l.aic=l.aic,l.bic=l.bic,l.gcv=l.gcv,beta.aic=beta.aic,beta.bic=beta.bic,
-              beta.gcv=beta.gcv))
+              beta.gcv = beta.gcv))
   
 }
 
