@@ -3,9 +3,8 @@ library(doParallel)
 library(iterators)
 library(Rcpp)
 
-
 formula <- y ~ .
-data = df[c(1:15,53)]
+data = df
 id <- "id"
 time_col <- "t"
 heredity = "strong"
@@ -47,21 +46,7 @@ iForm_FunctionalMap <- function(formula,
   
   repeat{
     
-    # min_out <- minfval_map_parallel_func(C = C, 
-    #                                      S = S, 
-    #                                      response = response, 
-    #                                      data = data, 
-    #                                      time_col = time_col,
-    #                                      no_cores = no_cores)
-    # output_list[[step]] <- min_out
-    
-    # RSS <- rss_map_func(C = C,
-    #                     S = S,
-    #                     response = response,
-    #                     data = data,
-    #                     time_col = time_col,
-    #                     design_mat = X)
-    
+    # too flexible of a model.  It picks the largest legendre polynomial and falsely fits the data
     rss_mat <- mapply(function(k) {
       rss_map_func(C = C,
                    S = S,
@@ -70,7 +55,7 @@ iForm_FunctionalMap <- function(formula,
                    time_col = time_col,
                    design_mat = X,
                    poly_num = k)
-      }, 1:5)
+      }, 1:10)
     
     r_idx <- which.min(rss_mat) %% length(C)
     c_idx <- which.min(rss_mat) %/% length(C) + 1
@@ -105,20 +90,20 @@ iForm_FunctionalMap <- function(formula,
       
     }
     
-    bic_val <- log(min(unlist(RSS))/n) + length(S) * (log(n) + 2 * log(p))/n
+    bic_val <- log(RSS/n) + length(S) * (log(n) + 2 * log(p))/n
     bic <- append(bic, bic_val)
-    if(length(bic) > 10) break
-    step <- step + 1
+    if(length(bic) > 15) break
+    
   }
   
   end_idx <- max(grep(S[which.min(bic)], colnames(X)))
   
   M <- data.frame(y = y, X[,1:end_idx])
-  lm(y ~ 0 + ., data = M)
   
-  # out <- output_list[[which.min(bic)]]
-  # rss_out <- sapply(seq_along(out), function(i) out[[i]]$fval)
-  # out[[which.min(rss_out)]]
+  list(a = g_out$par[1],
+       b = g_out$par[2],
+       r = g_out$par[3],
+       fit = lm(y ~ 0 + ., data = M))
   
 }
 
