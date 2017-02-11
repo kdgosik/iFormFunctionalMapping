@@ -22,9 +22,9 @@ diag(COVAR) <- sigma^2
 #COVAR <- kronecker(diag(j), COVAR)
 #mvrnorm(n = 1, rep(0, 10), COVAR)
 
-# sim_list <- list()
-# for(i in 1:20){
-  
+sim_list <- list()
+for(i in 1:100){
+
 snps <- matrix(rbinom(5000, 1, 0.5), nrow = 100)
 snps <- data.frame(id = 1:100, snps)
 
@@ -111,13 +111,22 @@ df <- data.frame(y, df)
 
 system.time({
   
+# FuncMap_fit <- iForm_FunctionalMap(formula = y ~ .,
+#                     data = df,
+#                     id = "id",
+#                     time_col = "t",
+#                     heredity = "strong",
+#                     higher_order = FALSE,
+#                     no_cores = 8)
+# 
+# })
+
 FuncMap_fit <- iForm_FunctionalMap(formula = y ~ .,
-                    data = df,
-                    id = "id",
-                    time_col = "t",
-                    heredity = "strong",
-                    higher_order = FALSE,
-                    no_cores = 8)
+                                   data = df,
+                                   id = "id",
+                                   time_col = "t",
+                                   heredity = "strong",
+                                   higher_order = FALSE)
 
 })
 
@@ -126,3 +135,5 @@ sim_list[[i]] <- list(fit = FuncMap_fit,
                  data = df)
 
 }
+
+saveRDS(sim_list, "simulation_out_ols.rds")

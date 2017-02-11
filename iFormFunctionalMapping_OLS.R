@@ -55,7 +55,7 @@ iForm_FunctionalMap <- function(formula,
                    time_col = time_col,
                    design_mat = X,
                    poly_num = k)
-      }, 1:10)
+      }, 1:5)
     
     r_idx <- which.min(rss_mat) %% length(C)
     c_idx <- which.min(rss_mat) %/% length(C) + 1
