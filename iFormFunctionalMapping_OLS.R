@@ -2,20 +2,29 @@ library(foreach)
 library(doParallel)
 library(iterators)
 library(Rcpp)
+# 
+# formula <- y ~ .
+# data = df
+# id <- "id"
+# time_col <- "t"
+# heredity = "strong"
+# higher_order = FALSE
 
-formula <- y ~ .
-data = df
-id <- "id"
-time_col <- "t"
-heredity = "strong"
-higher_order = FALSE
+# 
+# formula <- HT ~ .
+# data = dat
+# id <- "Tree"
+# time_col <- "time"
+# heredity = "strong"
+# higher_order = FALSE
 
 iForm_FunctionalMap <- function(formula, 
                                 data, 
                                 id, 
                                 time_col, 
                                 heredity = "strong", 
-                                higher_order = FALSE) {
+                                higher_order = FALSE,
+                                poly_num) {
   
   formula_vars <- all.vars(formula)
   response <- formula_vars[1]
@@ -45,29 +54,27 @@ iForm_FunctionalMap <- function(formula,
   repeat{
     
     # too flexible of a model.  It picks the largest legendre polynomial and falsely fits the data
-    rss_mat <- mapply(function(k) {
-      rss_map_func(C = C,
-                   S = S,
-                   response = response,
-                   data = data,
-                   time_col = time_col,
-                   design_mat = X,
-                   poly_num = k)
-      }, 1:5)
+    rss_mat <- rss_map_func(C = C,
+                            S = S,
+                            response = response,
+                            data = data,
+                            time_col = time_col,
+                            design_mat = X,
+                            poly_num = poly_num)
     
     r_idx <- which(rss_mat == min(rss_mat), arr.ind = TRUE)[1]
     c_idx <- which(rss_mat == min(rss_mat), arr.ind = TRUE)[2]
     RSS <- rss_mat[r_idx, c_idx]
 
     ## update design matrix with names
-    form <- as.formula(paste(response, "~0+", C[r_idx]))
+    form <- as.formula(paste(response, "~0+", C[c_idx]))
     d <- drop(model.matrix(form, data))
-    Leg_design <- Legendre(t, c_idx) * d
-    colnames(Leg_design) <- paste0(C[r_idx], "_P", 0:(c_idx - 1))
+    Leg_design <- Legendre(t, r_idx)[, r_idx, drop = FALSE] * d
+    colnames(Leg_design) <- paste0(C[c_idx], "_P", (r_idx - 1))
     X <- cbind(X, Leg_design)
     
-    S <- c(S, C[r_idx])
-    C <- C[-r_idx]
+    S <- c(S, C[c_idx])
+    C <- C[-c_idx]
     
     order2 <- switch( heredity,
                       `none` = NULL,
@@ -75,7 +82,7 @@ iForm_FunctionalMap <- function(formula,
                       `weak` = weak_order2(S = S, C = C, data = data)
     )
     
-    C <- union(C, order2)
+    C <- union(C, setdiff(order2, S))
     
     if( higher_order ) {
       
@@ -84,18 +91,20 @@ iForm_FunctionalMap <- function(formula,
                         `weak` = weak_order3(S = S, C = C, data = data)
       )
       
-      C <- union(C, order3)
+      C <- union(C, setdiff(order3, S))
       
     }
     
-    bic_val <- log(RSS/n) + length(S) * (log(n) + 2 * log(5*p))/n
+    bic_val <- log(RSS/n) + length(S) * (log(n) + 2 * log(poly_num * p))/n
     bic <- append(bic, bic_val)
     if(length(bic) > 15) break
     
   }
   
-  end_idx <- max(grep(S[which.min(bic)], colnames(X)))
-  M <- data.frame(y = y, X[,1:end_idx])
+  # end_idx <- max(grep(S[which.min(bic)], colnames(X)))
+  # M <- data.frame(y = y, X[,1:end_idx])
+  
+  M <- data.frame(y = y, X[, 1 : which.min(bic)])
   
   list(a = g_out$par[1],
        b = g_out$par[2],
@@ -122,16 +131,17 @@ g1 <- function(parameters, data, response, time_col){
   sum( (y - y_hat )^2 )
 }
 
+
+{ # old code
 ## solving the parameters by psuedo least squares
-g_out <- fminsearch(g1, c(150, 1, 1),
-           data = df,
-           response = "y",
-           time_col = "t")
+# g_out <- fminsearch(g1, c(150, 1, 1),
+#            data = df,
+#            response = "y",
+#            time_col = "t")
+
 
 # mu_t <- g_out$xval[1]/(1 + (g_out$xval[2]) * exp(-(g_out$xval[3]) * df$t))
 # X <- matrix(mu_t, ncol = 1)
-
-
 
 ## rss mapping function
 # rss_map_func <- function(C, S, response, data, time_col, design_mat){
@@ -150,27 +160,27 @@ g_out <- fminsearch(g1, c(150, 1, 1),
 #   })
 #   
 # }
-
-
-## rss mapping function
-rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
-  
-  ti <- data[, time_col]
-  
-  
-  sapply(C, function(candidates){
-    
-    form <- as.formula(paste(response, "~0+", candidates))
-    d <- drop(model.matrix(form, data))
-    X <- cbind(design_mat, Legendre(ti, poly_num) * d)
-    
-    tryCatch({
-    sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2) 
-    }, error = function(e) Inf)
-  })
-  
+# 
+# 
+# ## rss mapping function
+# rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
+#   
+#   ti <- data[, time_col]
+#   y <- data[, response]
+#   
+#   sapply(C, function(candidates){
+#     
+#     form <- as.formula(paste(response, "~0+", candidates))
+#     d <- drop(model.matrix(form, data))
+#     X <- cbind(design_mat, Legendre(ti, poly_num) * d)
+#     
+#     tryCatch({
+#     sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2) 
+#     }, error = function(e) Inf)
+#   })
+#   
+# }
 }
-
 
   # Legendre polynomial fit
 Legendre<-function( t, np.order=1,tmin=NULL, tmax=NULL )
@@ -206,6 +216,31 @@ Legendre<-function( t, np.order=1,tmin=NULL, tmax=NULL )
     np.order.mat[,11] <- (1/256)*(46189*ti^10-109395*ti^8+90090*ti^6-30030*ti^4+3465*ti^2-63)
   return(np.order.mat)
 }
+
+
+## rss mapping function
+rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
+  
+  ti <- data[, time_col]
+  y <- data[, response]
+  
+  mapply(function(candidates){
+    
+    form <- as.formula(paste(response, "~0+", candidates))
+    d <- drop(model.matrix(form, data))
+    
+    sapply(1 : poly_num, function(k){
+    X <- cbind(design_mat, Legendre(ti, k)[, k, drop = FALSE] * d)
+    
+    tryCatch({
+      sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2) 
+    }, error = function(e) Inf)
+    
+    })
+  }, C)
+  
+}
+
 
 
 ## Heredity Selection

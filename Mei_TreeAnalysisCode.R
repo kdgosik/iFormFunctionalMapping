@@ -27,10 +27,22 @@ dat <- dat %>% arrange(Tree, time)
 system.time({
   
 fit_ht <- iForm_FunctionalMap(formula = HT ~ .,
-                      data = mei,
+                      data = dat[,-3],
                       id = "Tree",
                       time_col = "time",
                       heredity = "weak",
                       higher_order = FALSE)
+  
+})
+
+
+system.time({
+  
+  fit_dia <- iForm_FunctionalMap(formula = DIA ~ .,
+                                data = dat[,-2],
+                                id = "Tree",
+                                time_col = "time",
+                                heredity = "weak",
+                                higher_order = FALSE)
   
 })

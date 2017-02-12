@@ -47,22 +47,39 @@ df <- merge(snps, time_df, by = "id", all = TRUE)
 # snp6 <- rep(snp6_effect %*% L, 100)
 # snp7_effect <- rnorm(4, 2, 0.25)
 # snp7 <- rep(snp7_effect %*% L, 100)
+
+
+# snp1_effect <- rnorm(4, 3, 1)
+# snp1 <- rep(snp1_effect %*% t(Legendre(t, 4)), 100)
+# snp2_effect <- rnorm(2, 3, 1)
+# snp2 <- rep(snp2_effect %*% t(Legendre(t, 2)), 100)
+# snp3_effect <- rnorm(3, 3, 1)
+# snp3 <- rep(snp3_effect %*% t(Legendre(t, 3)), 100)
+# snp4_effect <- rnorm(2, 3, 1)
+# snp4 <- rep(snp4_effect %*% t(Legendre(t, 2)), 100)
+# snp5_effect <- rnorm(4, 3, 1)
+# snp5 <- rep(snp5_effect %*% t(Legendre(t, 4)), 100)
+# snp6_effect <- rnorm(2, 3, 1)
+# snp6 <- rep(snp6_effect %*% t(Legendre(t, 2)), 100)
+# snp7_effect <- rnorm(3, 3, 1)
+# snp7 <- rep(snp7_effect %*% t(Legendre(t, 3)), 100)
 }
 
-snp1_effect <- rnorm(4, 3, 1)
-snp1 <- rep(snp1_effect %*% t(Legendre(t, 4)), 100)
-snp2_effect <- rnorm(2, 3, 1)
-snp2 <- rep(snp2_effect %*% t(Legendre(t, 2)), 100)
-snp3_effect <- rnorm(3, 3, 1)
-snp3 <- rep(snp3_effect %*% t(Legendre(t, 3)), 100)
-snp4_effect <- rnorm(2, 3, 1)
-snp4 <- rep(snp4_effect %*% t(Legendre(t, 2)), 100)
-snp5_effect <- rnorm(4, 3, 1)
-snp5 <- rep(snp5_effect %*% t(Legendre(t, 4)), 100)
-snp6_effect <- rnorm(2, 3, 1)
-snp6 <- rep(snp6_effect %*% t(Legendre(t, 2)), 100)
-snp7_effect <- rnorm(3, 3, 1)
-snp7 <- rep(snp7_effect %*% t(Legendre(t, 3)), 100)
+snp1_effect <- rnorm(1, 3, 1)
+snp1 <- snp1_effect * rep(Legendre(t, 4)[, 4], 100)
+snp2_effect <- rnorm(1, 3, 1)
+snp2 <- snp2_effect * rep(Legendre(t, 2)[, 2], 100)
+snp3_effect <- rnorm(1, 3, 1)
+snp3 <- snp3_effect * rep(Legendre(t, 3)[, 3], 100)
+snp4_effect <- rnorm(1, 3, 1)
+snp4 <- snp4_effect * rep(Legendre(t, 2)[, 2], 100)
+snp5_effect <- rnorm(1, 3, 1)
+snp5 <- snp5_effect * rep(Legendre(t, 4)[, 4], 100)
+snp6_effect <- rnorm(1, 3, 1)
+snp6 <- snp6_effect * rep(Legendre(t, 2)[, 2], 100)
+snp7_effect <- rnorm(1, 3, 1)
+snp7 <- snp7_effect * rep(Legendre(t, 3)[, 3], 100)
+
 
 y <- as.vector(t(mvrnorm(n = 100, mu, COVAR))) + 
   snp1 * df[, "X1"] + 
@@ -143,7 +160,8 @@ FuncMap_fit <- iForm_FunctionalMap(formula = y ~ .,
                                    id = "id",
                                    time_col = "t",
                                    heredity = "strong",
-                                   higher_order = FALSE)
+                                   higher_order = FALSE,
+                                   poly_num = 5)
 
 })
 
@@ -156,4 +174,4 @@ sim_list[[i]] <- list(fit = FuncMap_fit,
 
 }
 
-saveRDS(sim_list, "simulation_out_ols2.rds")
+saveRDS(sim_list, "simulation_out_ols.rds")
