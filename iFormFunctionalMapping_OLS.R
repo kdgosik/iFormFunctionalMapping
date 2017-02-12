@@ -26,8 +26,6 @@ iForm_FunctionalMap <- function(formula,
   S <- NULL
   M <- NULL
   bic <- NULL
-  output_list <- NULL
-  step <- 1
   
   a_hat <- max(data[, response])
   g_out <- optim(c(a_hat, 1, 1), 
@@ -57,8 +55,8 @@ iForm_FunctionalMap <- function(formula,
                    poly_num = k)
       }, 1:5)
     
-    r_idx <- which.min(rss_mat) %% length(C)
-    c_idx <- which.min(rss_mat) %/% length(C) + 1
+    r_idx <- which(rss_mat == min(rss_mat), arr.ind = TRUE)[1]
+    c_idx <- which(rss_mat == min(rss_mat), arr.ind = TRUE)[2]
     RSS <- rss_mat[r_idx, c_idx]
 
     ## update design matrix with names
@@ -90,14 +88,13 @@ iForm_FunctionalMap <- function(formula,
       
     }
     
-    bic_val <- log(RSS/n) + length(S) * (log(n) + 2 * log(p))/n
+    bic_val <- log(RSS/n) + length(S) * (log(n) + 2 * log(5*p))/n
     bic <- append(bic, bic_val)
     if(length(bic) > 15) break
     
   }
   
   end_idx <- max(grep(S[which.min(bic)], colnames(X)))
-  
   M <- data.frame(y = y, X[,1:end_idx])
   
   list(a = g_out$par[1],
@@ -156,7 +153,7 @@ g_out <- fminsearch(g1, c(150, 1, 1),
 
 
 ## rss mapping function
-rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num = 1){
+rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
   
   ti <- data[, time_col]
   
@@ -209,8 +206,6 @@ Legendre<-function( t, np.order=1,tmin=NULL, tmax=NULL )
     np.order.mat[,11] <- (1/256)*(46189*ti^10-109395*ti^8+90090*ti^6-30030*ti^4+3465*ti^2-63)
   return(np.order.mat)
 }
-
-
 
 
 ## Heredity Selection

@@ -2,7 +2,7 @@ library(pracma)
 library(MASS)
 library(ggplot2)
 rm(list=ls()); gc(reset = TRUE)
-source("iForm_FunctionalMapping.R")
+source("iFormFunctionalMapping_OLS.R")
 
 
 a <- 180
@@ -32,20 +32,37 @@ time_df <- do.call(rbind, lapply(1:100, function(id) cbind(id, t)))
 
 df <- merge(snps, time_df, by = "id", all = TRUE)
 
-snp1_effect <- rnorm(4, 1, 0.125)
-snp1 <- rep(snp1_effect %*% L, 100)
-snp2_effect <- rnorm(4, 1, 0.125)
-snp2 <- rep(snp2_effect %*% L, 100)
-snp3_effect <- rnorm(4, 1, 0.125)
-snp3 <- rep(snp3_effect %*% L, 100)
-snp4_effect <- rnorm(4, 1, 0.125)
-snp4 <- rep(snp4_effect %*% L, 100)
-snp5_effect <- rnorm(4, 1, 0.125)
-snp5 <- rep(snp5_effect %*% L, 100)
-snp6_effect <- rnorm(4, 1, 0.125)
-snp6 <- rep(snp6_effect %*% L, 100)
-snp7_effect <- rnorm(4, 1, 0.125)
-snp7 <- rep(snp7_effect %*% L, 100)
+{
+# snp1_effect <- rnorm(4, 2, 0.25)
+# snp1 <- rep(snp1_effect %*% L, 100)
+# snp2_effect <- rnorm(4, 2, 0.25)
+# snp2 <- rep(snp2_effect %*% L, 100)
+# snp3_effect <- rnorm(4, 2, 0.25)
+# snp3 <- rep(snp3_effect %*% L, 100)
+# snp4_effect <- rnorm(4, 2, 0.25)
+# snp4 <- rep(snp4_effect %*% L, 100)
+# snp5_effect <- rnorm(4, 2, 0.25)
+# snp5 <- rep(snp5_effect %*% L, 100)
+# snp6_effect <- rnorm(4, 2, 0.25)
+# snp6 <- rep(snp6_effect %*% L, 100)
+# snp7_effect <- rnorm(4, 2, 0.25)
+# snp7 <- rep(snp7_effect %*% L, 100)
+}
+
+snp1_effect <- rnorm(4, 3, 1)
+snp1 <- rep(snp1_effect %*% t(Legendre(t, 4)), 100)
+snp2_effect <- rnorm(2, 3, 1)
+snp2 <- rep(snp2_effect %*% t(Legendre(t, 2)), 100)
+snp3_effect <- rnorm(3, 3, 1)
+snp3 <- rep(snp3_effect %*% t(Legendre(t, 3)), 100)
+snp4_effect <- rnorm(2, 3, 1)
+snp4 <- rep(snp4_effect %*% t(Legendre(t, 2)), 100)
+snp5_effect <- rnorm(4, 3, 1)
+snp5 <- rep(snp5_effect %*% t(Legendre(t, 4)), 100)
+snp6_effect <- rnorm(2, 3, 1)
+snp6 <- rep(snp6_effect %*% t(Legendre(t, 2)), 100)
+snp7_effect <- rnorm(3, 3, 1)
+snp7 <- rep(snp7_effect %*% t(Legendre(t, 3)), 100)
 
 y <- as.vector(t(mvrnorm(n = 100, mu, COVAR))) + 
   snp1 * df[, "X1"] + 
@@ -132,8 +149,11 @@ FuncMap_fit <- iForm_FunctionalMap(formula = y ~ .,
 
 
 sim_list[[i]] <- list(fit = FuncMap_fit,
-                 data = df)
+                 data = df,
+                 snp_effects = list(snp1_effect, snp2_effect, snp3_effect,
+                                    snp4_effect, snp5_effect, snp6_effect,
+                                    snp7_effect))
 
 }
 
-saveRDS(sim_list, "simulation_out_ols.rds")
+saveRDS(sim_list, "simulation_out_ols2.rds")
