@@ -2,6 +2,7 @@ library(foreach)
 library(doParallel)
 library(iterators)
 library(Rcpp)
+library(nlme)
 # 
 # formula <- y ~ .
 # data = df
