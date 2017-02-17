@@ -157,10 +157,10 @@ system.time({
 
 FuncMap_fit <- iForm_FunctionalMap(formula = y ~ .,
                                    data = df,
-                                   id = "id",
+                                   id_col = "id",
                                    time_col = "t",
-                                   heredity = "weak",
-                                   higher_order = TRUE,
+                                   heredity = "strong",
+                                   higher_order = FALSE,
                                    poly_num = 5)
 
 })
