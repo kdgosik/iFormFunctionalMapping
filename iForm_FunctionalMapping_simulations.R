@@ -159,11 +159,16 @@ FuncMap_fit <- iForm_FunctionalMap(formula = y ~ .,
                                    data = df,
                                    id = "id",
                                    time_col = "t",
-                                   heredity = "strong",
-                                   higher_order = FALSE,
+                                   heredity = "weak",
+                                   higher_order = TRUE,
                                    poly_num = 5)
 
 })
+
+
+coef_names <- names(FuncMap_fit$fit$coefficients)[-1]
+vars <- do.call(rbind,strsplit(coef_names, split = "_"))[, 1]
+poly_order <- as.numeric(substr(do.call(rbind,strsplit(coef_names, split = "_"))[, 2],2,2))
 
 
 sim_list[[i]] <- list(fit = FuncMap_fit,

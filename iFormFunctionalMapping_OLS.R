@@ -7,8 +7,9 @@ library(Rcpp)
 # data = df
 # id <- "id"
 # time_col <- "t"
-# heredity = "strong"
+# heredity = "weak"
 # higher_order = FALSE
+# poly_num <- 5
 
 # 
 # formula <- HT ~ .
@@ -28,6 +29,7 @@ iForm_FunctionalMap <- function(formula,
   
   formula_vars <- all.vars(formula)
   response <- formula_vars[1]
+  y <- data[, response]
   t <- data[, time_col]
   p <- ncol(data) - 3
   n <- nrow(data)
@@ -54,6 +56,8 @@ iForm_FunctionalMap <- function(formula,
   repeat{
     
     # too flexible of a model.  It picks the largest legendre polynomial and falsely fits the data
+    
+    system.time({
     rss_mat <- rss_map_func(C = C,
                             S = S,
                             response = response,
@@ -61,6 +65,7 @@ iForm_FunctionalMap <- function(formula,
                             time_col = time_col,
                             design_mat = X,
                             poly_num = poly_num)
+    })
     
     r_idx <- which(rss_mat == min(rss_mat), arr.ind = TRUE)[1]
     c_idx <- which(rss_mat == min(rss_mat), arr.ind = TRUE)[2]
@@ -104,7 +109,7 @@ iForm_FunctionalMap <- function(formula,
   # end_idx <- max(grep(S[which.min(bic)], colnames(X)))
   # M <- data.frame(y = y, X[,1:end_idx])
   
-  M <- data.frame(y = y, X[, 1 : which.min(bic)])
+  M <- data.frame(y = y, X[, 1 : which.min(bic), drop = FALSE])
   
   list(a = g_out$par[1],
        b = g_out$par[2],
@@ -183,10 +188,8 @@ g1 <- function(parameters, data, response, time_col){
 }
 
   # Legendre polynomial fit
-Legendre<-function( t, np.order=1,tmin=NULL, tmax=NULL )
+Legendre<-function( t, np.order=1,tmin=NULL, tmax=NULL, u = -1, v = 1 )
 {
-  u <- -1
-  v <- 1
   if (is.null(tmin)) tmin<-min(t)
   if (is.null(tmax)) tmax<-max(t)
   nt <- length(t)
@@ -222,6 +225,7 @@ Legendre<-function( t, np.order=1,tmin=NULL, tmax=NULL )
 rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
   
   ti <- data[, time_col]
+  L <- Legendre(ti, poly_num)
   y <- data[, response]
   
   mapply(function(candidates){
@@ -230,7 +234,7 @@ rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
     d <- drop(model.matrix(form, data))
     
     sapply(1 : poly_num, function(k){
-    X <- cbind(design_mat, Legendre(ti, k)[, k, drop = FALSE] * d)
+    X <- cbind(design_mat, L[, k, drop = FALSE] * d)
     
     tryCatch({
       sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2) 
@@ -239,6 +243,41 @@ rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
     })
   }, C)
   
+}
+
+
+## rss mapping function parallel attempt with foreach
+rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
+  
+  cl <- makeCluster(8)
+  registerDoParallel(cl)
+  
+  ti <- data[, time_col]
+  L <- Legendre(ti, poly_num)
+  y <- data[, response]
+  
+  
+  out <- foreach(candidates = C, 
+          .export = c("model.matrix")) %dopar% {
+    
+    form <- as.formula(paste(response, "~0+", candidates))
+    d <- drop(model.matrix(form, data))
+    
+    sapply(1 : poly_num, function(k){
+      X <- cbind(design_mat, L[, k, drop = FALSE] * d)
+      
+      tryCatch({
+        sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2) 
+      }, error = function(e) Inf)
+      
+    })
+    
+          }
+  
+  stopCluster(cl)
+  out <- t(do.call(rbind, out))
+  colnames(out) <- C
+  out
 }
 
 
@@ -264,7 +303,7 @@ weak_order2 <- function( S, C, data ) {
   tryCatch({
     
     main_effects <- sort(S[S %in% names(data)])
-    as.vector(outer(main_effects, C, paste, sep = ":"))
+    as.vector(outer(main_effects, C[C %in% names(data)], paste, sep = ":"))
     
   }, error = function(e) NULL)
   
@@ -296,7 +335,7 @@ weak_order3 <- function( S, C, data ) {
     )
     
     weak_three <- as.vector(
-      outer(interaction_effects, C, paste, sep = ":")
+      outer(interaction_effects, C[C %in% names(data)], paste, sep = ":")
     )
     
     as.vector(
