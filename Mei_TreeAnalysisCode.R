@@ -42,10 +42,10 @@ system.time({
   
 fit_ht <- iForm_FunctionalMap(formula = HT ~ .,
                       data = dat_ht,
-                      id = "Tree",
+                      id_col = "Tree",
                       time_col = "time",
                       heredity = "strong",
-                      higher_order = TRUE,
+                      higher_order = FALSE,
                       poly_num = 6)
   
 })

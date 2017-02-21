@@ -4,21 +4,23 @@ library(iterators)
 library(Rcpp)
 library(nlme)
 # 
-formula <- y ~ .
-data = df
-id_col <- "id"
-time_col <- "t"
-heredity = "strong"
-higher_order = FALSE
-poly_num <- 5
+# formula <- y ~ .
+# data = df
+# id_col <- "id"
+# time_col <- "t"
+# heredity = "strong"
+# higher_order = FALSE
+# poly_num <- 5
 
 # 
 # formula <- HT ~ .
-# data = dat
-# id <- "Tree"
+# data = dat_ht
+# id_col <- "Tree"
 # time_col <- "time"
 # heredity = "strong"
 # higher_order = FALSE
+# poly_num <- 4
+
 
 iForm_FunctionalMap <- function(formula, 
                                 data, 
@@ -35,6 +37,7 @@ iForm_FunctionalMap <- function(formula,
   id <- data[, id_col]
   p <- ncol(data) - 3
   n <- nrow(data)
+  d <- floor(n/length(unique(t)) / log(n/length(unique(t)), 2)) - 1
   C <- names(data)[!{names(data) %in% c(id_col, time_col, formula_vars)}]
   S <- NULL
   M <- NULL
@@ -57,8 +60,6 @@ iForm_FunctionalMap <- function(formula,
   
   repeat{
     
-    # too flexible of a model.  It picks the largest legendre polynomial and falsely fits the data
-    
     system.time({
     rss_mat <- rss_map_func(C = C,
                             S = S,
@@ -78,7 +79,7 @@ iForm_FunctionalMap <- function(formula,
     form <- as.formula(paste(response, "~0+", C[c_idx]))
     d <- drop(model.matrix(form, data))
     Leg_design <- Legendre(t, r_idx)[, r_idx, drop = FALSE] * d
-    colnames(Leg_design) <- paste0(C[c_idx], "_P", (r_idx - 1))
+    colnames(Leg_design) <- gsub(":", "_by_", paste0(C[c_idx], "_P", (r_idx - 1)))
     X <- cbind(X, Leg_design)
     
     S <- c(S, C[c_idx])
@@ -105,11 +106,11 @@ iForm_FunctionalMap <- function(formula,
     
     bic_val <- log(RSS/n) + length(S) * (log(n) + 2 * log(poly_num * p))/n
     bic <- append(bic, bic_val)
-    if(length(bic) > 15) break
+    if(length(bic) >= d) break
     
   }
 
-  M <- data.frame(y = y, id = id, X[, 1 : which.min(bic), drop = FALSE])
+  M <- data.frame(y = y, id = id, X[, 1 : (which.min(bic) + 1), drop = FALSE])
   
   list(a = g_out$par[1],
        b = g_out$par[2],
@@ -227,21 +228,23 @@ rss_map_func <- function(C, S, response, data, id_col, time_col, design_mat, pol
   
   ti <- data[, time_col]
   L <- Legendre(ti, poly_num)
-  y <- data[, c(response, id_col)]
+  y <- data[, response]
+  id <- data[, id_col]
   
   mapply(function(candidates){
-    
+
     form <- as.formula(paste(response, "~0+", candidates))
     d <- drop(model.matrix(form, data))
     
     sapply(1 : poly_num, function(k){
-      X <- data.frame(y, design_mat, cand_x = L[, k, drop = FALSE] * d)
-      gls_form <- as.formula(paste0("y~0+", paste0(c(colnames(design_mat), "cand_x"), collapse = "+")))
+      X <- data.frame(y, id, design_mat, cand_x = L[, k, drop = FALSE] * d)
+      gls_form <- as.formula(paste0("y ~ 0 - id + ", paste0(c(colnames(design_mat), "cand_x"), collapse = "+")))
+      
+      tryCatch({
       gls_fit <- gls(gls_form, 
                      data = X, 
-                     correlation = corAR1(form = as.formula(paste("~1|", id_col))))
+                     correlation = corAR1(form = ~1|id))
       
-    tryCatch({
       sum((gls_fit$residuals)^2)
     }, error = function(e) Inf)
     
@@ -252,7 +255,9 @@ rss_map_func <- function(C, S, response, data, id_col, time_col, design_mat, pol
 
 
 ## rss mapping function parallel attempt with foreach
-rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
+
+## rss mapping function
+rss_map_func <- function(C, S, response, data, id_col, time_col, design_mat, poly_num){
   
   cl <- makeCluster(4)
   registerDoParallel(cl)
@@ -260,30 +265,37 @@ rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
   ti <- data[, time_col]
   L <- Legendre(ti, poly_num)
   y <- data[, response]
-  
+  id <- data[, id_col]
   
   out <- foreach(candidates = C, 
-          .export = c("model.matrix")) %dopar% {
+                 .export = c("model.matrix"), 
+                 .packages = "nlme") %dopar% {
     
     form <- as.formula(paste(response, "~0+", candidates))
     d <- drop(model.matrix(form, data))
     
     sapply(1 : poly_num, function(k){
-      X <- cbind(design_mat, L[, k, drop = FALSE] * d)
+      X <- data.frame(y, id, design_mat, cand_x = L[, k, drop = FALSE] * d)
+      gls_form <- as.formula(paste0("y ~ 0 - id + ", paste0(c(colnames(design_mat), "cand_x"), collapse = "+")))
       
       tryCatch({
-        sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2) 
+        gls_fit <- gls(gls_form, 
+                       data = X, 
+                       correlation = corAR1(form = ~1|id))
+        
+        sum((gls_fit$residuals)^2)
       }, error = function(e) Inf)
       
     })
-    
-          }
+                 }
   
   stopCluster(cl)
   out <- t(do.call(rbind, out))
   colnames(out) <- C
   out
+  
 }
+
 
 
 

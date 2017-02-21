@@ -25,10 +25,10 @@ diag(COVAR) <- sigma^2
 sim_list <- list()
 for(i in 1:100){
 
-snps <- matrix(rbinom(5000, 1, 0.5), nrow = 100)
-snps <- data.frame(id = 1:100, snps)
+snps <- matrix(rbinom(10000, 1, 0.5), nrow = 200)
+snps <- data.frame(id = 1:200, snps)
 
-time_df <- do.call(rbind, lapply(1:100, function(id) cbind(id, t)))
+time_df <- do.call(rbind, lapply(1:200, function(id) cbind(id, t)))
 
 df <- merge(snps, time_df, by = "id", all = TRUE)
 
@@ -91,6 +91,9 @@ y <- as.vector(t(mvrnorm(n = 100, mu, COVAR))) +
   snp7 * df[, "X3"] * df[, "X5"]
 
 df <- data.frame(y, df)
+samp <- sample(200, 50)
+test_df <- df[df$id %in% samp, ]
+train_df <- df[!{df$id %in% samp}, ]
 # ggplot(df, aes(t, y)) + geom_path()
 # ggplot(df, aes(t, y)) + geom_point() + geom_smooth()
 
@@ -156,7 +159,7 @@ system.time({
 # })
 
 FuncMap_fit <- iForm_FunctionalMap(formula = y ~ .,
-                                   data = df,
+                                   data = train_df,
                                    id_col = "id",
                                    time_col = "t",
                                    heredity = "strong",
@@ -166,17 +169,18 @@ FuncMap_fit <- iForm_FunctionalMap(formula = y ~ .,
 })
 
 
-coef_names <- names(FuncMap_fit$fit$coefficients)[-1]
-vars <- do.call(rbind,strsplit(coef_names, split = "_"))[, 1]
-poly_order <- as.numeric(substr(do.call(rbind,strsplit(coef_names, split = "_"))[, 2],2,2))
+# coef_names <- names(FuncMap_fit$fit$coefficients)[-1]
+# vars <- do.call(rbind,strsplit(coef_names, split = "_"))[, 1]
+# poly_order <- as.numeric(substr(do.call(rbind,strsplit(coef_names, split = "_"))[, 2],2,2))
 
 
 sim_list[[i]] <- list(fit = FuncMap_fit,
-                 data = df,
+                 train_data = df,
                  snp_effects = list(snp1_effect, snp2_effect, snp3_effect,
                                     snp4_effect, snp5_effect, snp6_effect,
-                                    snp7_effect))
+                                    snp7_effect),
+                 test_df = test_df)
 
 }
 
-saveRDS(sim_list, "simulation_out_ols.rds")
+saveRDS(sim_list, "simulation_out_gls.rds")
