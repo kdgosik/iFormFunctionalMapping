@@ -37,7 +37,7 @@ iForm_FunctionalMap <- function(formula,
   id <- data[, id_col]
   p <- ncol(data) - 3
   n <- nrow(data)
-  d <- floor(n/length(unique(t)) / log(n/length(unique(t)), 2)) - 1
+  d_0 <- floor(n/length(unique(t)) / log(n/length(unique(t)), 2)) - 1
   C <- names(data)[!{names(data) %in% c(id_col, time_col, formula_vars)}]
   S <- NULL
   M <- NULL
@@ -106,7 +106,7 @@ iForm_FunctionalMap <- function(formula,
     
     bic_val <- log(RSS/n) + length(S) * (log(n) + 2 * log(poly_num * p))/n
     bic <- append(bic, bic_val)
-    if(length(bic) >= d) break
+    if(length(bic) >= d_0) break
     
   }
 
@@ -137,58 +137,8 @@ g1 <- function(parameters, data, response, time_col){
   
   sum( (y - y_hat )^2 )
 }
-
-
-{ # old code
-## solving the parameters by psuedo least squares
-# g_out <- fminsearch(g1, c(150, 1, 1),
-#            data = df,
-#            response = "y",
-#            time_col = "t")
-
-
-# mu_t <- g_out$xval[1]/(1 + (g_out$xval[2]) * exp(-(g_out$xval[3]) * df$t))
-# X <- matrix(mu_t, ncol = 1)
-
-## rss mapping function
-# rss_map_func <- function(C, S, response, data, time_col, design_mat){
-#   
-#   ti <- data[, time_col]
-#   
-# 
-#   sapply(C, function(candidates){
-# 
-#     form <- as.formula(paste(response, "~0+", candidates))
-#     d <- drop(model.matrix(form, data))
-#     X <- cbind(design_mat, Legendre(ti, 3) * d)
-#     
-#     sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2) 
-#     
-#   })
-#   
-# }
-# 
-# 
-# ## rss mapping function
-# rss_map_func <- function(C, S, response, data, time_col, design_mat, poly_num){
-#   
-#   ti <- data[, time_col]
-#   y <- data[, response]
-#   
-#   sapply(C, function(candidates){
-#     
-#     form <- as.formula(paste(response, "~0+", candidates))
-#     d <- drop(model.matrix(form, data))
-#     X <- cbind(design_mat, Legendre(ti, poly_num) * d)
-#     
-#     tryCatch({
-#     sum((y - X %*% (solve(t(X) %*% X)) %*% (t(X) %*% y)) ^ 2) 
-#     }, error = function(e) Inf)
-#   })
-#   
-# }
-}
-
+  
+  
   # Legendre polynomial fit
 Legendre<-function( t, np.order=1,tmin=NULL, tmax=NULL, u = -1, v = 1 )
 {
