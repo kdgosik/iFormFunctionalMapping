@@ -31,13 +31,13 @@ time_df <- do.call(rbind, lapply(1:200, function(id) cbind(id, t)))
 
 df <- merge(snps, time_df, by = "id", all = TRUE)
 
-snp1_effect <- rnorm(1, 10, 1)
+snp1_effect <- rnorm(1, 15, 1)
 snp1 <- snp1_effect * rep(Legendre(t, 4)[, 4], 100)
-snp2_effect <- rnorm(1, 10, 1)
+snp2_effect <- rnorm(1, 15, 1)
 snp2 <- snp2_effect * rep(Legendre(t, 2)[, 2], 100)
-snp3_effect <- rnorm(1, 10, 1)
+snp3_effect <- rnorm(1, 15, 1)
 snp3 <- snp3_effect * rep(Legendre(t, 3)[, 3], 100)
-snp4_effect <- rnorm(1, 10, 1)
+snp4_effect <- rnorm(1, 15, 1)
 snp4 <- snp4_effect * rep(Legendre(t, 2)[, 2], 100)
 snp5_effect <- rnorm(1, 15, 1)
 snp5 <- snp5_effect * rep(Legendre(t, 4)[, 4], 100)
@@ -93,7 +93,7 @@ sim_list[[i]] <- list(fit = FuncMap_fit,
 
 }
 
-saveRDS(sim_list, "simulation_out_gls.rds")
+saveRDS(sim_list, "simulation_out_gls2.rds")
 
 
 df %>% split(t) %>% map(~summary(.$y))
