@@ -37,15 +37,17 @@ test_marks <- union(markers_want, samp)
 
 ht_run <- c("Tree", "time", "HT", test_marks)
 dat_ht <- dat[,ht_run]
+dat_ht <- dat[, -3]
+
 
 system.time({
   
-fit_ht <- iForm_FunctionalMap(formula = HT ~ .,
+fit_ht_strong_hgi <- iForm_FunctionalMap(formula = HT ~ .,
                       data = dat_ht,
                       id_col = "Tree",
                       time_col = "time",
                       heredity = "strong",
-                      higher_order = FALSE,
+                      higher_order = TRUE,
                       poly_num = 6)
   
 })

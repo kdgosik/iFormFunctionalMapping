@@ -111,3 +111,30 @@ ggplot(plot_dat, aes(x = t, y = y, color = group)) + geom_path()
 
 df_modeled <- df$mu_t
 df %>% gather(predictor, y, X1, X3, X5, X8)
+
+
+
+gls_sim1[[1]]$fit$fit
+
+coef_name <- names(gls_sim1[[1]]$fit$fit$coefficients)
+
+strsplit(x = coef_name, split = "_P")
+
+
+sapply(1:100, function(i) length(names(gls_sim1[[i]]$fit$fit$coefficients)))
+
+mapply(function(i) names(gls_sim1[[i]]$fit$fit$coefficients), 1:100)
+
+
+
+tmp <- mapply(function(i) do.call(rbind, strsplit(out[i,], "_P"))[,1], 1:100)
+out <- t(tmp)
+
+
+out <- t(mapply(function(i){
+strsplit(out[i,], "_by_") %>%
+  Map(function(x){
+    paste(sort(x), collapse = ":")
+  },.) %>%
+  do.call(rbind,.)
+}, 1:100))
